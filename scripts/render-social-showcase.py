@@ -298,6 +298,50 @@ def reel_timeline(bottom):
     return positions
 
 
+# Cookie/consent banners: the final check holds any reel that shows one
+# (16 Nov), so accept them the way a visitor would, then hide whatever's left.
+COOKIE_CSS = """
+#onetrust-banner-sdk, #onetrust-consent-sdk, #CybotCookiebotDialog, #CybotCookiebotDialogBodyUnderlay,
+#usercentrics-root, #usercentrics-cmp-ui, #didomi-host, #didomi-popup, .didomi-popup-backdrop,
+#truste-consent-track, #consent_blackbar, .cc-window, .cc-banner, .cky-consent-container, .cky-overlay,
+#cookie-law-info-bar, .cli-modal-backdrop, #moove_gdpr_cookie_info_bar, .cmplz-cookiebanner, #cmplz-cookiebanner-container,
+#hs-eu-cookie-confirmation, .iubenda-cs-container, #iubenda-cs-banner, #qc-cmp2-container, .qc-cmp2-container,
+#termly-code-snippet-support, .termly-styles-root, [id^="sp_message_container"], .osano-cm-window, #ccc,
+.fc-consent-root, #cookiescript_injected, #cookie-banner, #cookie-notice, #cookieConsent, #cookie-consent,
+.cookie-banner, .cookie-notice, .cookie-consent, .cookies-banner, [aria-label*="cookie" i][role="dialog"],
+[aria-label*="consent" i][role="dialog"] { display: none !important; visibility: hidden !important; }
+html, body { overflow: auto !important; }
+"""
+
+DISMISS_COOKIES = """() => {
+  const words = /^(accept( all| all cookies| cookies)?|allow( all| all cookies| cookies)?|agree( and close)?|i agree|ok(ay)?|got it|understood|i understand|continue|close|dismiss|alle akzeptieren|akzeptieren|tout accepter|accepter|aceptar( todo)?|accetta( tutto)?)$/i;
+  const host = /cookie|consent|gdpr|privacy|cmp|onetrust|didomi|usercentrics|cookiebot|osano|iubenda|termly|truste/i;
+  const inBanner = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) { if (host.test((n.id || '') + ' ' + (n.className?.baseVal ?? n.className ?? '') + ' ' + (n.getAttribute('aria-label') || ''))) return true; } return false; };
+  let clicked = 0;
+  for (const el of document.querySelectorAll('button, a[role="button"], [role="button"], input[type="button"], input[type="submit"]')) {
+    const text = (el.innerText || el.value || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ');
+    if (text.length > 40) continue;
+    const exactAccept = /^(accept all( cookies)?|allow all( cookies)?|accept cookies|alle akzeptieren|tout accepter)$/i.test(text);
+    if ((exactAccept || (words.test(text) && inBanner(el))) && el.offsetParent !== null) { el.click(); clicked++; }
+  }
+  return clicked;
+}"""
+
+
+def dismiss_cookies(page):
+    """Click a cookie banner's accept button (main page and consent iframes), then hide known banners."""
+    try:
+        for frame in page.frames:
+            try:
+                frame.evaluate(DISMISS_COOKIES)
+            except Exception:
+                pass
+        page.wait_for_timeout(600)
+        page.add_style_tag(content=COOKIE_CSS)
+    except Exception:
+        pass  # never let a banner helper fail the render
+
+
 def open_site(page, url, attempts=3):
     """Load the site and make sure a real HTML page with a body is there.
 
@@ -317,6 +361,8 @@ def open_site(page, url, attempts=3):
             pass  # heavy pages: carry on once the DOM is there
         state = page.evaluate("() => ({body: !!document.body && document.body.children.length > 0, type: document.contentType, url: location.href})")
         if state["body"]:
+            page.wait_for_timeout(1500)  # consent tools inject their banner a moment after load
+            dismiss_cookies(page)
             return response
         last = (response.status if response else None, state["url"], state["type"])
     status, final_url, kind = last
@@ -399,6 +445,7 @@ def capture():
             pass
         # Let loaders, intros and scroll holds finish in real time first.
         reel.wait_for_timeout(4500)
+        dismiss_cookies(reel)
         reel.evaluate("""async () => {
           await document.fonts?.ready;
           document.documentElement.style.scrollBehavior = 'auto';
@@ -467,6 +514,7 @@ def preflight():
         except Exception:
             pass
         page.wait_for_timeout(4500)  # the same wait the Reel gives loaders and intros
+        dismiss_cookies(page)
         bottom = page.evaluate("Math.max(0, document.documentElement.scrollHeight - innerHeight)")
         kind = "page" if bottom >= 300 else "wheel"
         height = REEL_VIEWPORT["height"]
