@@ -324,8 +324,23 @@ DISMISS_COOKIES = """() => {
     const exactAccept = /^(accept all( cookies)?|allow all( cookies)?|accept cookies|alle akzeptieren|tout accepter)$/i.test(text);
     if ((exactAccept || (words.test(text) && inBanner(el))) && el.offsetParent !== null) { el.click(); clicked++; }
   }
+  // Whatever's left: a fixed/sticky bar that talks about cookies is a consent banner.
+  for (const el of document.body.querySelectorAll('*')) {
+    const pos = getComputedStyle(el).position;
+    if (pos !== 'fixed' && pos !== 'sticky') continue;
+    const t = el.innerText || '';
+    if (t.length < 700 && /cookie|consent|gdpr/i.test(t)) { el.style.setProperty('display', 'none', 'important'); clicked++; }
+  }
   return clicked;
 }"""
+
+
+def dismiss_cookies_now(page):
+    """The in-recording version: no waits, main page only."""
+    try:
+        page.evaluate(DISMISS_COOKIES)
+    except Exception:
+        pass
 
 
 def dismiss_cookies(page):
@@ -471,6 +486,8 @@ def capture():
               await window.__vclock.step(ms);
               await window.__vclock.settle();
             }""", [y, step_ms])
+            if i % 10 == 0:
+                dismiss_cookies_now(reel)  # banners that appear once the virtual clock runs
             # JPEG: much faster to write, and invisible once shrunk onto the laptop screen.
             reel.screenshot(path=str(FRAMES / f"{i:05d}.jpg"), type="jpeg", quality=92, animations="allow", caret="hide")
             if i % 120 == 0:
@@ -575,6 +592,8 @@ def wheel_reel(page, step_ms):
         if hold_start <= i < total - hold_end:
             page.mouse.wheel(0, per_capture)
         page.evaluate("async (ms) => { await window.__vclock.step(ms); await window.__vclock.settle(); }", 1000 / rate)
+        if i % 10 == 0:
+            dismiss_cookies_now(page)
         frame = FRAMES / f"{n:05d}.jpg"
         page.screenshot(path=str(frame), type="jpeg", quality=92, animations="allow", caret="hide")
         shutil.copyfile(frame, FRAMES / f"{n + 1:05d}.jpg")
