@@ -1,0 +1,11 @@
+{
+  "name": "bluepeek-reel-renderer",
+  "private": true,
+  "description": "Renders BluePeek's MacBook scroll reels (social showcases).",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "2.106.1",
+    "@vercel/blob": "2.6.1",
+    "tsx": "4.23.15"
+  }
+}

@@ -1,0 +1,217 @@
+{
+ "note": "MacBook plates for the scroll Reel. Generated with Higgsfield GPT Image 2.5 (white screen); screen corners fitted from the white panel. Add a plate: generate with a flat white screen, fit corners, append here. Corners include the glass under the AI's oversized bezel (top/bottom grown to leave ~1.2% of the width as bezel); screen_aspect sets the capture viewport so nothing stretches. Curved monitors: add top_mid/bottom_mid (the middle of each bowed edge) and the site bends with the glass. scripts/macbook/fit_plate.py fits all of this from a white-screen photo.",
+ "plates": [
+  {
+   "id": "home-office",
+   "file": "home-office.jpg",
+   "description": "Warm home office, amber desk lamp",
+   "size": [
+    1520,
+    2688
+   ],
+   "screen": {
+    "tl": [
+     216.4,
+     903.9
+    ],
+    "tr": [
+     1303.0,
+     902.4
+    ],
+    "br": [
+     1309.0,
+     1669.1
+    ],
+    "bl": [
+     207.4,
+     1669.1
+    ]
+   },
+   "screen_aspect": 1.4285
+  },
+  {
+   "id": "dark-studio",
+   "file": "dark-studio.jpg",
+   "description": "Dark studio, warm strip light, coffee cup",
+   "size": [
+    1520,
+    2688
+   ],
+   "screen": {
+    "tl": [
+     321.4,
+     1007.9
+    ],
+    "tr": [
+     1197.4,
+     1006.3
+    ],
+    "br": [
+     1209.8,
+     1605.3
+    ],
+    "bl": [
+     311.5,
+     1606.1
+    ]
+   },
+   "screen_aspect": 1.4822
+  },
+  {
+   "id": "blue-hour",
+   "file": "blue-hour.jpg",
+   "description": "Apartment at blue hour, city window, brass lamp",
+   "size": [
+    1520,
+    2688
+   ],
+   "screen": {
+    "tl": [
+     279.9,
+     1093.2
+    ],
+    "tr": [
+     1221.6,
+     1093.2
+    ],
+    "br": [
+     1242.3,
+     1768.5
+    ],
+    "bl": [
+     260.8,
+     1770.8
+    ]
+   },
+   "screen_aspect": 1.4217
+  },
+  {
+   "id": "macbook-loft",
+   "file": "macbook-loft.jpg",
+   "description": "Bright Scandinavian loft, daylight, MacBook",
+   "size": [
+    941,
+    1672
+   ],
+   "screen": {
+    "tl": [
+     162.0,
+     615.0
+    ],
+    "tr": [
+     786.0,
+     617.6
+    ],
+    "br": [
+     786.0,
+     992.0
+    ],
+    "bl": [
+     162.0,
+     992.0
+    ]
+   },
+   "screen_aspect": 1.661
+  },
+  {
+   "id": "imac-studio",
+   "file": "imac-studio.jpg",
+   "description": "Architect studio, brass lamp, iMac",
+   "size": [
+    941,
+    1672
+   ],
+   "screen": {
+    "tl": [
+     153.0,
+     558.0
+    ],
+    "tr": [
+     842.0,
+     558.0
+    ],
+    "br": [
+     842.0,
+     937.6
+    ],
+    "bl": [
+     153.0,
+     939.4
+    ]
+   },
+   "screen_aspect": 1.8108
+  },
+  {
+   "id": "oled-night",
+   "file": "oled-night.jpg",
+   "description": "Dark studio, curved OLED ultrawide",
+   "size": [
+    2160,
+    3824
+   ],
+   "screen": {
+    "tl": [
+     98.0,
+     1544.1
+    ],
+    "tr": [
+     2064.0,
+     1541.2
+    ],
+    "br": [
+     2064.0,
+     2261.1
+    ],
+    "bl": [
+     98.0,
+     2260.5
+    ],
+    "top_mid": [
+     1081.0,
+     1579.2
+    ],
+    "bottom_mid": [
+     1081.0,
+     2222.4
+    ]
+   },
+   "screen_aspect": 2.857
+  },
+  {
+   "id": "ultrawide-city",
+   "file": "ultrawide-city.jpg",
+   "description": "High-rise office at dusk, curved ultrawide",
+   "size": [
+    2160,
+    3824
+   ],
+   "screen": {
+    "tl": [
+     125.0,
+     1465.4
+    ],
+    "tr": [
+     2045.0,
+     1464.2
+    ],
+    "br": [
+     2045.0,
+     2194.3
+    ],
+    "bl": [
+     125.0,
+     2190.5
+    ],
+    "top_mid": [
+     1085.0,
+     1505.2
+    ],
+    "bottom_mid": [
+     1085.0,
+     2146.9
+    ]
+   },
+   "screen_aspect": 2.7704
+  }
+ ]
+}

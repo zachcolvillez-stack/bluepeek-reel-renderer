@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<!-- Case-study post, 1080 × 1350. The renderer injects window.CASE (copy +
+     design picks) and the site screenshots as data URIs, then screenshots
+     #post. Five layouts × palettes × font pairs, chosen per post so no two
+     clients' tiles look the same. Restraint over decoration: no boxed cards,
+     no frames, no ornaments — hairlines, whitespace and one accent. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="fonts" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1350px; overflow: hidden; }
+  body { background: var(--bg); }
+  #post {
+    position: relative; width: 1080px; height: 1350px; overflow: hidden;
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Instagram's profile grid crops 4:5 posts to 3:4, losing ~34px each
+     side, so nothing important sits within 72px of the left/right edges. */
+  .pad { position: absolute; left: 88px; right: 88px; }
+  .kicker { font: 600 22px/1 var(--sans); letter-spacing: .22em; text-transform: uppercase; color: var(--muted); }
+  .kicker b { color: var(--accent); font-weight: 600; }
+  .headline { font-family: var(--display); font-weight: var(--display-weight); letter-spacing: var(--display-track); line-height: 1.02; color: var(--ink); }
+  .headline em { font-style: normal; color: var(--accent); }
+  .client { font: 500 27px/1.35 var(--sans); color: var(--ink); }
+  .client span { color: var(--muted); }
+  .story { font: 400 30px/1.45 var(--sans); color: var(--soft); }
+  .rule { height: 1px; background: var(--line); }
+  .facts { display: flex; }
+  .fact { flex: 1; padding-right: 28px; }
+  .fact + .fact { padding-left: 28px; border-left: 1px solid var(--line); }
+  .fact .v { font-family: var(--display); font-weight: var(--display-weight); font-size: 74px; line-height: 1; color: var(--ink); letter-spacing: var(--display-track); }
+  .fact .l { margin-top: 12px; font: 500 21px/1.3 var(--sans); color: var(--muted); }
+  .built { list-style: none; counter-reset: b; }
+  .built li { counter-increment: b; display: flex; gap: 22px; padding: 22px 0; border-top: 1px solid var(--line); font: 500 29px/1.3 var(--sans); color: var(--ink); }
+  .built li::before { content: counter(b, decimal-leading-zero); font: 600 20px/1.9 var(--sans); color: var(--accent); letter-spacing: .08em; }
+  .sign { display: flex; justify-content: space-between; align-items: center; font: 600 20px/1 var(--sans); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .sign i { font-style: normal; color: var(--ink); }
+  .shot { position: absolute; overflow: hidden; background: var(--shotbg); }
+  .shot img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+
+  /* A — editorial: big serif statement, story, facts, desktop bleeding off the corner */
+  .L-editorial .kicker { top: 96px; }
+  .L-editorial .headline { top: 152px; font-size: 92px; }
+  .L-editorial .client { top: 490px; }
+  .L-editorial .story { top: 585px; max-width: 760px; }
+  .L-editorial .facts { top: 800px; width: 620px; }
+  .L-editorial .fact .v { font-size: 64px; }
+  /* Contained, never bleeding: a bleed read as "doesn't fit" and the grid crops it. */
+  .L-editorial .shot.desk { left: 88px; right: 88px; bottom: 132px; height: 290px; border-radius: 18px; }
+  .L-editorial .sign { bottom: 64px; right: auto; white-space: nowrap; }
+  .L-editorial .sign span + span { display: none; }
+
+  /* B — stat-led: dark ground, one hero fact, numbered build list, phone at the edge */
+  .L-stat .kicker { top: 96px; }
+  .L-stat .hero { position: absolute; top: 150px; left: 88px; font-family: var(--display); font-weight: var(--display-weight); font-size: 230px; line-height: .9; letter-spacing: var(--display-track); color: var(--accent); }
+  .L-stat .herolabel { top: 380px; font: 500 30px/1.3 var(--sans); color: var(--soft); max-width: 520px; }
+  .L-stat .headline { top: 520px; font-size: 64px; max-width: 600px; }
+  .L-stat .built { top: 820px; width: 560px; }
+  .L-stat .client { bottom: 120px; max-width: 560px; font-size: 24px; }
+  .L-stat .shot.phone { right: 72px; top: 470px; width: 300px; height: 650px; border-radius: 44px; }
+  .L-stat .sign { bottom: 64px; }
+
+  /* C — split: site above, fading into the ground; story below */
+  .L-split .shot.desk { left: 0; top: 0; width: 1080px; height: 560px; }
+  .L-split .fade { position: absolute; left: 0; right: 0; top: 330px; height: 232px; background: linear-gradient(to bottom, transparent, var(--bg)); }
+  .L-split .kicker { top: 600px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .L-split .headline { top: 650px; font-size: 70px; }
+  .L-split .story { top: 900px; font-size: 27px; max-width: 900px; }
+  .L-split .facts { top: 1056px; }
+  .L-split .built { top: 1000px; }
+  .L-split .client { bottom: 116px; font-size: 23px; }
+  .L-split .sign { bottom: 64px; }
+
+  /* D — owner story: name-led headline, before / built / now, small phone */
+  .L-story .kicker { top: 96px; }
+  .L-story .headline { top: 150px; font-size: 80px; max-width: 880px; }
+  .L-story .steps { top: 520px; width: 600px; }
+  .L-story .step { padding: 24px 0; border-top: 1px solid var(--line); }
+  .L-story .step h4 { font: 600 20px/1 var(--sans); letter-spacing: .2em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; }
+  .L-story .step p { font: 400 27px/1.42 var(--sans); color: var(--ink); }
+  .L-story .shot.phone { right: 88px; top: 560px; width: 270px; height: 585px; border-radius: 40px; }
+  .L-story .client { bottom: 120px; font-size: 24px; }
+  .L-story .sign { bottom: 64px; }
+
+  /* E — index: Swiss grid, oversized number, built items in columns */
+  .L-index .num { position: absolute; top: 70px; right: 88px; font-family: var(--display); font-weight: var(--display-weight); font-size: 200px; line-height: 1; color: var(--accent); letter-spacing: var(--display-track); }
+  .L-index .kicker { top: 110px; }
+  .L-index .client { top: 160px; max-width: 560px; }
+  .L-index .headline { top: 330px; font-size: 76px; }
+  .L-index .cols { top: 640px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+  .L-index .cols div { border-top: 2px solid var(--ink); padding-top: 18px; font: 500 26px/1.35 var(--sans); color: var(--ink); }
+  .L-index .cols div b { display: block; font: 600 18px/1 var(--sans); letter-spacing: .2em; color: var(--muted); margin-bottom: 14px; }
+  .L-index .shot.desk { left: 88px; right: 88px; top: 900px; height: 300px; border-radius: 18px; }
+  .L-index .sign { bottom: 64px; }
+</style>
+</head>
+<body>
+<div id="post"></div>
+<script>
+(() => {
+  const C = window.CASE;
+  const FONTS = {
+    instrument: { css: 'family=Instrument+Serif&family=Inter:wght@400;500;600', display: '"Instrument Serif", serif', sans: '"Inter", sans-serif', w: 400, t: '-0.01em' },
+    fraunces: { css: 'family=Fraunces:opsz,wght@9..144,500&family=Manrope:wght@400;500;600', display: '"Fraunces", serif', sans: '"Manrope", sans-serif', w: 500, t: '-0.02em' },
+    dmserif: { css: 'family=DM+Serif+Display&family=DM+Sans:wght@400;500;600', display: '"DM Serif Display", serif', sans: '"DM Sans", sans-serif', w: 400, t: '-0.01em' },
+    grotesk: { css: 'family=Space+Grotesk:wght@400;500;600;700', display: '"Space Grotesk", sans-serif', sans: '"Space Grotesk", sans-serif', w: 600, t: '-0.04em' },
+    playfair: { css: 'family=Playfair+Display:wght@500&family=Work+Sans:wght@400;500;600', display: '"Playfair Display", serif', sans: '"Work Sans", sans-serif', w: 500, t: '-0.015em' },
+  };
+  const f = FONTS[C.design.font] || FONTS.instrument;
+  document.getElementById('fonts').href = `https://fonts.googleapis.com/css2?${f.css}&display=block`;
+
+  // Palette from the client's brand colour.
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  const css = (c) => `rgb(${c.join(',')})`;
+  const lum = (c) => (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+  const a = hex(/^#[0-9a-f]{6}$/i.test(C.design.accent || '') ? C.design.accent : '#315cff');
+  const PALETTES = {
+    paper: () => ({ bg: [245, 242, 235], ink: [24, 28, 33], accent: lum(a) > 0.62 ? mix(a, [0, 0, 0], 0.45) : a }),
+    ink: () => ({ bg: mix(a, [10, 12, 16], 0.86), ink: [244, 241, 236], accent: lum(a) < 0.35 ? mix(a, [255, 255, 255], 0.45) : a }),
+    wash: () => ({ bg: mix(a, [255, 255, 255], 0.9), ink: mix(a, [8, 10, 14], 0.82), accent: lum(a) > 0.62 ? mix(a, [0, 0, 0], 0.4) : a }),
+    stone: () => ({ bg: [232, 229, 224], ink: [33, 31, 29], accent: lum(a) > 0.62 ? mix(a, [0, 0, 0], 0.45) : a }),
+  };
+  const p = (PALETTES[C.design.palette] || PALETTES.paper)();
+  const root = document.documentElement.style;
+  root.setProperty('--bg', css(p.bg));
+  root.setProperty('--ink', css(p.ink));
+  root.setProperty('--accent', css(p.accent));
+  root.setProperty('--soft', css(mix(p.ink, p.bg, 0.22)));
+  root.setProperty('--muted', css(mix(p.ink, p.bg, 0.45)));
+  root.setProperty('--line', css(mix(p.ink, p.bg, 0.8)));
+  root.setProperty('--shotbg', css(mix(p.ink, p.bg, 0.9)));
+  root.setProperty('--display', f.display);
+  root.setProperty('--sans', f.sans);
+  root.setProperty('--display-weight', f.w);
+  root.setProperty('--display-track', f.t);
+
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  // *word* in the headline becomes the single accent phrase.
+  const head = esc(C.headline).replace(/\*([^*]+)\*/, '<em>$1</em>').replace(/\*/g, '');
+  const who = [C.client.person, C.client.business].filter(Boolean).map(esc).join(' · ');
+  const clientLine = `<div class="pad client">${who}<br><span>${esc(C.client.place || '')}</span></div>`;
+  const facts = (C.facts || []).slice(0, 3);
+  const factRow = facts.length ? `<div class="pad facts">${facts.map((x) => `<div class="fact"><div class="v">${esc(x.value)}</div><div class="l">${esc(x.label)}</div></div>`).join('')}</div>` : '';
+  const built = (C.built || []).slice(0, 3);
+  const builtList = `<ol class="pad built">${built.map((b) => `<li>${esc(b)}</li>`).join('')}</ol>`;
+  const sign = `<div class="pad sign"><span>Case study · <i>Bluepeek</i></span><span>bluepeek.com.au</span></div>`;
+  const desk = `<div class="shot desk"><img src="${C.images.desktop}"></div>`;
+  const phone = `<div class="shot phone"><img src="${C.images.mobile}"></div>`;
+  const kicker = `<div class="pad kicker"><b>${esc(C.kicker || 'Case study')}</b> &nbsp;·&nbsp; ${esc(C.client.trade || '')}</div>`;
+
+  const L = {
+    editorial: () => `${kicker}<h1 class="pad headline">${head}</h1>${clientLine}<p class="pad story">${esc(C.story)}</p>${factRow}${desk}${sign}`,
+    stat: () => {
+      const hero = facts[0] || { value: String(built.length), label: 'things we built' };
+      return `${kicker}<div class="hero">${esc(hero.value)}</div><div class="pad herolabel">${esc(hero.label)}</div><h1 class="pad headline">${head}</h1>${builtList}${phone}${clientLine}${sign}`;
+    },
+    split: () => `${desk}<div class="fade"></div><div class="pad kicker"><b>${esc(C.kicker || 'Case study')}</b> &nbsp;·&nbsp; ${who}</div><h1 class="pad headline">${head}</h1><p class="pad story">${esc(C.story)}</p>${factRow || builtList}${sign}`,
+    story: () => `${kicker}<h1 class="pad headline">${head}</h1><div class="pad steps">
+        <div class="step"><h4>Before</h4><p>${esc(C.story)}</p></div>
+        <div class="step"><h4>What we built</h4><p>${built.map(esc).join(' · ')}</p></div>
+        <div class="step"><h4>Now</h4><p>${esc(C.closing)}</p></div></div>${phone}${clientLine}${sign}`,
+    index: () => `<div class="num">${esc(C.design.number || '01')}</div>${kicker}${clientLine}<h1 class="pad headline">${head}</h1>
+        <div class="pad cols">${built.map((b, i) => `<div><b>0${i + 1}</b>${esc(b)}</div>`).join('')}</div>${desk}${sign}`,
+  };
+  const layout = L[C.design.layout] ? C.design.layout : 'editorial';
+  const post = document.getElementById('post');
+  post.className = `L-${layout}`;
+  post.innerHTML = L[layout]();
+
+  // Shrink the headline until it fits its slot (copy length varies by client).
+  const fit = async () => {
+    const link = document.getElementById('fonts');
+    if (!link.sheet) await new Promise((r) => { link.onload = r; link.onerror = r; setTimeout(r, 8000); });
+    await Promise.all([document.fonts.load(`${f.w} 80px ${f.display}`), document.fonts.load(`500 30px ${f.sans}`), document.fonts.load(`600 30px ${f.sans}`)]).catch(() => {});
+    await document.fonts.ready;
+    await Promise.all([...document.images].map((im) => im.decode().catch(() => {})));
+    const h = post.querySelector('.headline');
+    const next = h && h.nextElementSibling;
+    const limit = { editorial: 300, stat: 270, split: 230, story: 340, index: 290 }[layout];
+    let size = parseFloat(getComputedStyle(h).fontSize);
+    while (h.offsetHeight > limit && size > 40) { size -= 2; h.style.fontSize = size + 'px'; }
+    // Short headlines: pull everything that sits under the headline up by
+    // the same amount, so the block keeps its rhythm with no dead gap.
+    if (layout === 'split') {
+      // Story, then the facts or the build list, stacked under the headline.
+      let y = h.offsetTop + h.offsetHeight + 40;
+      for (const sel of ['.story', '.facts', '.built']) {
+        const el = post.querySelector(sel);
+        if (!el) continue;
+        el.style.top = y + 'px';
+        y += el.offsetHeight + 40;
+      }
+    }
+    if (layout === 'editorial') {
+      // Stack client → story → facts under the headline, then shrink the
+      // story until the stack clears the screenshot.
+      const shot = post.querySelector('.shot.desk');
+      const limitY = shot ? shot.offsetTop - 36 : 1350 - 150;
+      const stack = () => {
+        let y = h.offsetTop + h.offsetHeight + 56;
+        for (const sel of ['.client', '.story', '.facts']) {
+          const el = post.querySelector(sel);
+          if (!el) continue;
+          el.style.top = y + 'px';
+          y += el.offsetHeight + (sel === '.client' ? 26 : 44);
+        }
+        return y - 44;
+      };
+      let guard = 0;
+      while (stack() > limitY && guard++ < 14) {
+        const st = post.querySelector('.story');
+        st.style.fontSize = (parseFloat(getComputedStyle(st).fontSize) * 0.94) + 'px';
+        if (guard > 6) { size -= 2; h.style.fontSize = size + 'px'; }
+      }
+    }
+    const follow = { story: ['.steps', '.shot.phone'], index: ['.cols'] }[layout] || [];
+    const els = follow.map((sel) => post.querySelector(sel)).filter(Boolean);
+    if (els.length) {
+      const firstTop = parseFloat(getComputedStyle(els[0]).top);
+      const delta = Math.min(260, firstTop - (h.offsetTop + h.offsetHeight + 70));
+      if (delta > 0) els.forEach((el) => { el.style.top = (parseFloat(getComputedStyle(el).top) - delta) + 'px'; });
+    }
+    // Safety net: nothing may run past the frame or into the footer line.
+    const sign = post.querySelector('.sign');
+    const floor = sign ? sign.offsetTop - 24 : 1350 - 90;
+    for (const el of post.querySelectorAll('.story, .built, .steps, .facts, .client, .cols')) {
+      let guard = 0;
+      while (el.offsetTop + el.offsetHeight > floor && guard++ < 12) {
+        const fs = parseFloat(getComputedStyle(el).fontSize);
+        el.style.fontSize = (fs * 0.94) + 'px';
+        el.querySelectorAll('*').forEach((c) => { c.style.fontSize = (parseFloat(getComputedStyle(c).fontSize) * 0.94) + 'px'; });
+      }
+    }
+    document.body.dataset.ready = '1';
+  };
+  fit();
+})();
+</script>
+</body>
+</html>

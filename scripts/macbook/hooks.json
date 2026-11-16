@@ -1,0 +1,19 @@
+{
+  "note": "Fallback hook lines shown above the MacBook when the AI hook can't be written. Keep them true: Bluepeek's offer is $0 upfront then a monthly plan, so no lines claiming a client paid a price.",
+  "hooks": [
+    "pov: client asked for a premium website",
+    "\"can i get a website for free?\"\nme: sure",
+    "pov: they thought this cost $3000",
+    "client: make it look expensive\nme:",
+    "they said \"just a simple website\"",
+    "pov: you finally stopped using facebook as your website",
+    "client said \"can it scroll like apple?\"",
+    "when the client replies \"love it\"",
+    "rate this website 1–10",
+    "pov: $0 upfront and it still looks like this",
+    "built this for a local business",
+    "pov: the website went live at 2am",
+    "no templates. built from scratch.",
+    "pov: your local shop has a better website than you"
+  ]
+}

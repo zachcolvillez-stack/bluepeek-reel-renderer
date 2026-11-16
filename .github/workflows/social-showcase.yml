@@ -1,0 +1,67 @@
+name: Render social showcase
+
+# Started by the social agent's hourly tick (one dispatch per queued reel).
+# No schedule: an idle */30 cron still bills a minute per run on a private repo.
+on:
+  workflow_dispatch:
+
+# No concurrency group: each run atomically claims one queued job, so several
+# runs render different clients in parallel instead of queueing behind each
+# other (a row takes ~12 min; three clients used to take 36).
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      contents: read
+    steps:
+      - id: config
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+            echo "Worker secrets are not configured yet; skipping render."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          queue=$(curl -fsS --get \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            --data-urlencode "select=id" --data-urlencode "status=eq.queued" --data-urlencode "limit=1" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/social_showcases")
+          if [ "$queue" = "[]" ]; then
+            echo "No jobs queued."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.ready == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: actions/setup-python@v5
+        if: steps.config.outputs.ready == 'true'
+        with:
+          python-version: "3.11"
+      - run: npm ci
+        if: steps.config.outputs.ready == 'true'
+      - run: pip install pillow==11.3.0 playwright==1.55.0 numpy==2.2.6
+        if: steps.config.outputs.ready == 'true'
+      # Google Chrome, not Playwright's Chromium: the Reel needs H.264 to play
+      # sites' MP4 scroll films. Runners usually have Chrome already.
+      - run: python -m playwright install --with-deps chrome || google-chrome --version
+        if: steps.config.outputs.ready == 'true'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        if: steps.config.outputs.ready == 'true'
+      - run: npx tsx scripts/social-showcase-worker.ts
+        if: steps.config.outputs.ready == 'true'
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN }}
