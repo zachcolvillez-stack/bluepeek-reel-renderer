@@ -14,6 +14,25 @@ if (!supabaseUrl || !serviceKey || !process.env.BLOB_READ_WRITE_TOKEN) {
 }
 const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
+const MAX_PREFLIGHTS = 3;
+const startedAt = Date.now();
+type Candidate = { site_url: string; site_name: string; studio: string; studio_url: string | null; awwwards_url: string | null };
+type AgentMeta = { candidates?: Candidate[]; rejected?: { site_url: string; reason: string }[]; plate_override?: string };
+type Job = { id: string; site_url: string; business_name: string; reel_meta: unknown; [k: string]: unknown };
+
+/** Point this job (and the agent's post) at a backup site, and rewrite the manifest for the renderer. */
+async function switchSite(job: Job, next: Candidate, manifest: string, reelMusic: unknown) {
+  job.site_url = next.site_url;
+  job.business_name = next.site_name;
+  const now = new Date().toISOString();
+  const a = await db.from("social_showcases").update({ site_url: next.site_url, business_name: next.site_name, reel_meta: job.reel_meta, updated_at: now }).eq("id", job.id);
+  if (a.error) throw a.error;
+  const b = await db.from("social_agent_posts").update({ site_url: next.site_url, site_name: next.site_name, credit_name: next.studio, credit_url: next.studio_url, source_url: next.awwwards_url, updated_at: now }).eq("showcase_id", job.id);
+  if (b.error) throw b.error;
+  const plateOverride = (job.reel_meta as AgentMeta | null)?.plate_override;
+  writeFileSync(manifest, JSON.stringify({ ...job, reel_music: reelMusic, ...(plateOverride ? { reel_plate: plateOverride } : {}) }));
+}
+
 async function main() {
   const stale = new Date(Date.now() - 160 * 60_000).toISOString();
   await db.from("social_showcases").update({ status: "failed", error: "Rendering worker timed out. Create a new showcase.", updated_at: new Date().toISOString() })
@@ -24,7 +43,7 @@ async function main() {
     .order("created_at", { ascending: true }).limit(1);
   if (queueError) throw queueError;
   if (!waiting?.length) { console.log("No showcase jobs queued."); return; }
-  const job = waiting[0];
+  const job = waiting[0] as Job;
   const { data: claimed, error: claimError } = await db.from("social_showcases")
     .update({ status: "running", error: null, updated_at: new Date().toISOString() })
     .eq("id", job.id).eq("status", "queued").select("id").maybeSingle();
@@ -42,18 +61,32 @@ async function main() {
     writeFileSync(manifest, JSON.stringify({ ...job, reel_music: reelMusic, ...(plateOverride ? { reel_plate: plateOverride } : {}) }));
     if (job.created_by === "social-agent") {
       // Agent-found sites get reviewed before the long render (Zach, 15 Nov:
-      // three of five reels "don't scroll through a website").
-      const verdict = await review(job, manifest, dir);
-      if (!verdict.pass) {
-        await db.from("social_showcases").update({ status: "failed", error: `Reviewer: ${verdict.reason}`.slice(0, 1000), updated_at: new Date().toISOString() })
-          .eq("id", job.id).eq("status", "running");
-        console.log(`Rejected by the reviewer: ${verdict.reason}`);
-        return;
+      // three of five reels "don't scroll through a website"). A site the
+      // reviewer turns down is swapped for the next screened backup the agent
+      // found, in this same run, so one bad pick doesn't cost the post.
+      let verdict = await review(job, manifest, dir);
+      for (let tries = 1; !verdict.pass; tries++) {
+        console.log(`Rejected by the reviewer: ${job.site_url}: ${verdict.reason}`);
+        const meta = (job.reel_meta as AgentMeta | null) ?? {};
+        meta.rejected = [{ site_url: job.site_url, reason: `Reviewer: ${verdict.reason}`.slice(0, 300) }, ...(meta.rejected ?? [])].slice(0, 20);
+        const next = tries < MAX_PREFLIGHTS ? meta.candidates?.shift() : undefined;
+        job.reel_meta = meta;
+        if (!next) {
+          await db.from("social_showcases").update({ status: "failed", reel_meta: meta, error: `Reviewer: ${verdict.reason}`.slice(0, 1000), updated_at: new Date().toISOString() })
+            .eq("id", job.id).eq("status", "running");
+          return;
+        }
+        await switchSite(job, next, manifest, reelMusic);
+        console.log(`Trying backup ${tries}: ${next.site_url}`);
+        verdict = await review(job, manifest, dir);
       }
       console.log(`Reviewer passed it: ${verdict.reason}`);
     }
+    // Whatever the preflights used, leave the workflow (150 min) room to upload.
+    const left = 145 * 60_000 - (Date.now() - startedAt);
+    if (left < 20 * 60_000) throw new Error("Not enough time left in this run to render; it will be retried.");
     const render = spawnSync("python", ["scripts/render-social-showcase.py", manifest, dir], {
-      stdio: "inherit", timeout: 130 * 60_000,
+      stdio: "inherit", timeout: Math.min(130 * 60_000, left),
     });
     if (render.error) throw render.error;
     if (render.status !== 0) throw new Error(`Renderer exited with code ${render.status}`);
@@ -65,6 +98,18 @@ async function main() {
         // Regenerate (Zach, 16 Nov): one more render on a different background
         // before giving up on the site. The agent replaces sites that fail twice.
         const attempt = Number(job.render_attempt ?? 0);
+        // Twice held on one site: switch to a backup site and render that from scratch.
+        const meta = (job.reel_meta as AgentMeta | null) ?? {};
+        if (attempt >= 1 && meta.candidates?.length) {
+          meta.rejected = [{ site_url: job.site_url, reason: `Final check: ${verdict.reason}`.slice(0, 300) }, ...(meta.rejected ?? [])].slice(0, 20);
+          const next = meta.candidates.shift()!;
+          job.reel_meta = { ...meta, plate_override: undefined };
+          await switchSite(job, next, manifest, reelMusic);
+          await db.from("social_showcases").update({ status: "queued", render_attempt: 0, error: `Final check held ${verdict.reason}`.slice(0, 1000), updated_at: new Date().toISOString() })
+            .eq("id", job.id).eq("status", "running");
+          console.log(`Final check held it twice; queued backup ${next.site_url}`);
+          return;
+        }
         if (attempt < 1) {
           let usedPlate: string | null = null;
           try { usedPlate = JSON.parse(readFileSync(join(dir, "reel-meta.json"), "utf8")).plate ?? null; } catch { /* no meta */ }
@@ -106,7 +151,7 @@ async function main() {
     if (reelMeta && existsSync(join(dir, "reel-4k.mp4"))) reelMeta.reel_4k_url = await upload("reel-4k.mp4", "video/mp4");
     const { error } = await db.from("social_showcases").update({
       status: "ready", image_png_url: imagePng, image_jpeg_url: imageJpeg,
-      reel_url: reel, ...caseStudy, reel_meta: reelMeta, accent_color: metadata.accent_color, updated_at: new Date().toISOString(),
+      reel_url: reel, ...caseStudy, reel_meta: { ...((job.reel_meta as Record<string, unknown> | null) ?? {}), ...(reelMeta ?? {}) }, accent_color: metadata.accent_color, updated_at: new Date().toISOString(),
     }).eq("id", job.id).eq("status", "running");
     if (error) throw error;
     console.log(`Ready: ${job.id}`);

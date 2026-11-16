@@ -355,6 +355,87 @@ def dismiss_cookies(page):
         page.add_style_tag(content=COOKIE_CSS)
     except Exception:
         pass  # never let a banner helper fail the render
+# Cookie banners and chat bubbles sat on top of every shot (Heimdall Power,
+# 16 Nov) and the reviewer rightly failed the site. Hide them with CSS from the
+# first paint: nothing is accepted or clicked, they just never show.
+HIDE_OVERLAYS = r"""
+(() => {
+  const css = `
+    #CybotCookiebotDialog, #CybotCookiebotDialogBodyUnderlay, #onetrust-consent-sdk, #onetrust-banner-sdk, .onetrust-pc-dark-filter,
+    #usercentrics-root, #usercentrics-cmp-ui, .cky-consent-container, .cky-overlay, .cky-btn-revisit-wrapper, #cookie-law-info-bar, .cli-modal-backdrop,
+    #cmplz-cookiebanner-container, .cmplz-cookiebanner, #didomi-host, #iubenda-cs-banner, #termly-code-snippet-support,
+    #cookiescript_injected, #cookiescript_injected_wrapper, .cc-window, .cc-revoke, #cookie-notice, #cookie-banner, .cookie-banner, #CookieBanner,
+    #hs-eu-cookie-confirmation, #moove_gdpr_cookie_info_bar, .osano-cm-window, .osano-cm-dialog, #truste-consent-track, #qc-cmp2-container,
+    .fc-consent-root, #axeptio_overlay, #tarteaucitronRoot, #klaro, .klaro, #ccc, #cookiefirst-root, .cookiefirst-root, #BorlabsCookieBox,
+    [class*="cookie-consent" i], [id*="cookie-consent" i], [class*="cookie-banner" i], [id*="cookie-banner" i], [class*="cookie-notice" i], [id*="cookie-notice" i],
+    [class*="cookieconsent" i], [id*="cookieconsent" i], [aria-label*="cookie" i][role="dialog"], [aria-label*="cookie" i][role="region"],
+    #intercom-container, .intercom-lightweight-app, .intercom-launcher, #hubspot-messages-iframe-container, #drift-widget, #drift-frame-controller,
+    #drift-frame-chat, .crisp-client, #crisp-chatbox, iframe#launcher, #webWidget, .zsiq_floatmain, .zsiq_float, #chat-widget-container,
+    #fc_frame, #tidio-chat, #gorgias-chat-container, #beacon-container, .tawk-min-container, iframe[title*="chat" i], iframe[title*="messaging" i]
+    { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }`;
+  const add = () => {
+    if (document.getElementById("__bp_hide")) return;
+    const style = document.createElement("style");
+    style.id = "__bp_hide";
+    style.textContent = css;
+    (document.head || document.documentElement).appendChild(style);
+  };
+  if (document.documentElement) add();
+  document.addEventListener("DOMContentLoaded", add);
+})();
+"""
+
+# A full-screen loader or intro covering the page (Delta Cafés, Obys, 16 Nov:
+# the first shots were the loader). Wait for it to go, up to a limit.
+LOADER_GONE = r"""
+() => {
+  const vw = innerWidth, vh = innerHeight;
+  for (const el of document.querySelectorAll("body *")) {
+    const name = ((el.id || "") + " " + (typeof el.className === "string" ? el.className : "")).toLowerCase();
+    if (!/(^|[\s_-])(pre-?loader|loader|loading|loading-screen|intro|splash|curtain)([\s_-]|$)/.test(name)) continue;
+    const st = getComputedStyle(el);
+    if (st.display === "none" || st.visibility === "hidden" || Number(st.opacity) < 0.1) continue;
+    if (st.position !== "fixed" && st.position !== "absolute") continue;
+    const r = el.getBoundingClientRect();
+    if (r.width * r.height >= vw * vh * 0.6 && r.top < vh && r.bottom > 0) return false;
+  }
+  return true;
+}
+"""
+
+
+def prepare_context(ctx):
+    """Every browser context the reel uses hides cookie and chat overlays."""
+    ctx.add_init_script(HIDE_OVERLAYS)
+
+
+def wait_for_loader(page, limit_ms=12000):
+    """After the usual wait, give a still-showing full-screen loader up to `limit_ms` more to finish."""
+    try:
+        page.wait_for_function(LOADER_GONE, timeout=limit_ms, polling=500)
+    except Exception:
+        print("A loader was still showing after the wait; carrying on", flush=True)
+    else:
+        page.wait_for_timeout(600)  # its fade-out
+
+
+def shot(page, path, previous=None, **kwargs):
+    """
+    One capture frame. A heavy site can stall a single screenshot past
+    Playwright's 30 s (Locomotive, 16 Nov), which used to kill the whole
+    render: try once more with longer, then reuse the previous frame.
+    """
+    for timeout in (30000, 90000):
+        try:
+            page.screenshot(path=str(path), timeout=timeout, **kwargs)
+            return
+        except Exception as e:
+            print(f"Screenshot {Path(path).name} stalled ({type(e).__name__}), {'retrying' if timeout == 30000 else 'reusing the last frame'}", flush=True)
+    if previous and Path(previous).exists():
+        import shutil
+        shutil.copyfile(previous, path)
+        return
+    raise RuntimeError("The site is too heavy to record (screenshots kept stalling)")
 
 
 def open_site(page, url, attempts=3):
@@ -403,11 +484,13 @@ def capture():
         desktop_context = browser.new_context(viewport={"width": 1440, "height": 900}, device_scale_factor=1, reduced_motion="reduce")
         mobile_context = browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=1, is_mobile=True, has_touch=True, reduced_motion="reduce")
         for ctx in (desktop_context, mobile_context):
+            prepare_context(ctx)
             ctx.route("**/*", lambda route: route.continue_() if safe_host(route.request.url) else route.abort())
 
         desktop = desktop_context.new_page()
         open_site(desktop, site)
         desktop.wait_for_timeout(3500)
+        wait_for_loader(desktop, 8000)
         desktop.screenshot(path=str(OUT / "desktop.png"), animations="disabled")
         # Retina capture for normal scrolling pages, so text on the screen stays
         # crisp in the 4K master. WebGL sites stay at 1x: without a GPU they
@@ -419,6 +502,7 @@ def capture():
         mobile = mobile_context.new_page()
         open_site(mobile, site)
         mobile.wait_for_timeout(4000)
+        wait_for_loader(mobile, 8000)
         if MANIFEST["accent_color"] == "#315cff":
             try:
                 candidates = mobile.evaluate("""() => {
@@ -437,6 +521,7 @@ def capture():
         mobile.screenshot(path=str(OUT / "mobile.png"), animations="disabled")
         reel_context = browser.new_context(viewport=REEL_VIEWPORT, device_scale_factor=REEL_SCALE, reduced_motion="no-preference")
         reel_context.add_init_script(VIRTUAL_CLOCK)
+        prepare_context(reel_context)
         reel_context.route("**/*", lambda route: route.continue_() if safe_host(route.request.url) else route.abort())
         print(f"Recording at {REEL_VIEWPORT['width']}x{REEL_VIEWPORT['height']} @{REEL_SCALE}x", flush=True)
         # Warm the site's lazy-loaded assets in this context, then open a fresh
@@ -460,6 +545,7 @@ def capture():
             pass
         # Let loaders, intros and scroll holds finish in real time first.
         reel.wait_for_timeout(4500)
+        wait_for_loader(reel)
         dismiss_cookies(reel)
         reel.evaluate("""async () => {
           await document.fonts?.ready;
@@ -489,7 +575,7 @@ def capture():
             if i % 10 == 0:
                 dismiss_cookies_now(reel)  # banners that appear once the virtual clock runs
             # JPEG: much faster to write, and invisible once shrunk onto the laptop screen.
-            reel.screenshot(path=str(FRAMES / f"{i:05d}.jpg"), type="jpeg", quality=92, animations="allow", caret="hide")
+            shot(reel, FRAMES / f"{i:05d}.jpg", FRAMES / f"{i - 1:05d}.jpg" if i else None, type="jpeg", quality=92, animations="allow", caret="hide")
             if i % 120 == 0:
                 print(f"Captured {i}/{len(positions)} scroll frames", flush=True)
         browser.close()
@@ -523,6 +609,7 @@ def preflight():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, channel="chrome", args=["--no-sandbox", "--hide-scrollbars", "--autoplay-policy=no-user-gesture-required"])
         ctx = browser.new_context(viewport=REEL_VIEWPORT, device_scale_factor=1, reduced_motion="no-preference")
+        prepare_context(ctx)
         ctx.route("**/*", lambda route: route.continue_() if safe_host(route.request.url) else route.abort())
         page = ctx.new_page()
         open_site(page, site)
@@ -531,6 +618,7 @@ def preflight():
         except Exception:
             pass
         page.wait_for_timeout(4500)  # the same wait the Reel gives loaders and intros
+        wait_for_loader(page)
         dismiss_cookies(page)
         bottom = page.evaluate("Math.max(0, document.documentElement.scrollHeight - innerHeight)")
         kind = "page" if bottom >= 300 else "wheel"
@@ -595,7 +683,7 @@ def wheel_reel(page, step_ms):
         if i % 10 == 0:
             dismiss_cookies_now(page)
         frame = FRAMES / f"{n:05d}.jpg"
-        page.screenshot(path=str(frame), type="jpeg", quality=92, animations="allow", caret="hide")
+        shot(page, frame, FRAMES / f"{n - 1:05d}.jpg" if n else None, type="jpeg", quality=92, animations="allow", caret="hide")
         shutil.copyfile(frame, FRAMES / f"{n + 1:05d}.jpg")
         n += 2
         size = frame.stat().st_size
