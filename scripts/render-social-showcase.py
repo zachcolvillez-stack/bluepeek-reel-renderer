@@ -32,9 +32,12 @@ FPS = 60
 MAX_SECONDS = float(sys.argv[3]) if len(sys.argv) > 3 else 36.0
 HOLD_START, HOLD_END, RAMP = 1.0, 1.0, 0.7
 # Reel pacing, in screens per second and seconds (see reel_timeline).
-REEL_TARGET_SECONDS, SPEED_MIN, SPEED_MAX = 20.0, 0.8, 1.8
+# 20 Nov, Zach: "it kinda scrolls through these sites too fast". Long pages
+# had been flying past at up to 1.8 screens a second, so text was unreadable
+# on a phone. Now at most 1.1 screens a second; a long page ends part-way down.
+REEL_TARGET_SECONDS, SPEED_MIN, SPEED_MAX = 20.0, 0.6, 1.1
 # Wheel-scrolled (WebGL) sites: no page length to fit, so a set pace.
-WHEEL_SPEED = 1.1
+WHEEL_SPEED = 0.8
 # The Reel shows the desktop site on a MacBook in a moody room
 # (scripts/macbook). 1512 × 982 is a 14" MacBook Pro's default viewport.
 REEL_VIEWPORT = {"width": 1512, "height": 982}
@@ -201,6 +204,45 @@ VIRTUAL_CLOCK = """(() => {
   window.clearTimeout = (id) => { timers.delete(id); realClearTimeout(id); };
   window.clearInterval = (id) => { timers.delete(id); realClearInterval(id); };
 
+  // Videos run on the virtual clock too. Left alone they play in real time
+  // while each frame takes a second or more to capture, so the reel jumped a
+  // second-plus of the site's showreel on every 1/60 s frame: the strobing
+  // Zach saw (20 Nov). A playing video is paused and stepped by seeking;
+  // a scroll-film video the site drives itself (paused, currentTime set from
+  // scroll) is never "wanted" and stays the site's.
+  const media = HTMLMediaElement.prototype;
+  const realPlay = media.play, realPause = media.pause;
+  const want = (v) => {
+    if (v.__vwant) return;
+    v.__vwant = true;
+    v.__vt = v.currentTime || 0;
+    realPause.call(v);
+  };
+  media.play = function () {
+    if (!on || !(this instanceof HTMLVideoElement)) return realPlay.call(this);
+    want(this);
+    return Promise.resolve();
+  };
+  media.pause = function () {
+    if (on) this.__vwant = false;
+    return realPause.call(this);
+  };
+  // Autoplay starts videos without calling play().
+  document.addEventListener("play", (e) => { if (on && e.target instanceof HTMLVideoElement) want(e.target); }, true);
+  const stepVideos = (ms) => {
+    for (const v of document.querySelectorAll("video")) {
+      if (!v.__vwant) continue;
+      const d = v.duration;
+      let t = v.__vt + (ms / 1000) * (v.playbackRate || 1);
+      if (isFinite(d) && d > 0) {
+        if (v.loop) t %= d;
+        else if (t >= d) { t = d; v.__vwant = false; }
+      }
+      v.__vt = t;
+      if (Math.abs(v.currentTime - t) > 0.001) { try { v.currentTime = t; } catch (e) {} }
+    }
+  };
+
   const run = (cb, args) => { try { typeof cb === "function" ? cb(...(args || [])) : null; } catch (e) { console.error(e); } };
   const pauseAnimations = (fresh) => {
     for (const a of document.getAnimations()) {
@@ -218,6 +260,7 @@ VIRTUAL_CLOCK = """(() => {
       if (on) return;
       now = realNow(); dateBase = realDateNow() - now; on = true;
       pauseAnimations(false);
+      for (const v of document.querySelectorAll("video")) if (!v.paused) want(v);
     },
     async step(ms) {
       now += ms;
@@ -228,6 +271,7 @@ VIRTUAL_CLOCK = """(() => {
       }
       const batch = rafs; rafs = new Map();
       for (const cb of batch.values()) run(cb, [now]);
+      stepVideos(ms);
       pauseAnimations(true);
       for (const a of document.getAnimations()) {
         if (a.__vt === undefined) continue;
@@ -270,10 +314,9 @@ def reel_timeline(bottom):
     so the viewer never sees the page lurch or crawl.
     """
     viewport = REEL_VIEWPORT["height"]
-    # Speed fits the page: the whole site in a ~20 second Reel. Short pages
-    # still move at 0.8 of a screen a second (half a screen dragged: Zach, 15 Nov,
-    # "the scroll was quite slow"); long ones go up to 1.8 screens a second
-    # so they reach the footer, and past that end part-way down rather than blur.
+    # Speed fits the page: the whole site in a ~20 second Reel, between
+    # SPEED_MIN and SPEED_MAX screens a second. Past that a long page ends
+    # part-way down rather than blur past.
     longest = min(MAX_SECONDS, REEL_TARGET_SECONDS) - HOLD_START - HOLD_END
     speed = min(max(bottom / max(1.0, longest - RAMP), viewport * SPEED_MIN), viewport * SPEED_MAX)
     travel = min(bottom, speed * (longest - RAMP))
