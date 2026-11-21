@@ -197,7 +197,9 @@ def _ease(t):
 
 class MacbookCompositor:
     def __init__(self, plate, src_size, out_size=(1080, 1920), push_in=0.07, fill=0.84, light=None, hook=None):
-        self.plate = relight(Image.open(HERE / plate["file"]).convert("RGB"), light)
+        # Weather plates ("relight": false) keep their real sky: a sunset
+        # mustn't turn brand-purple just because the lamp would.
+        self.plate = relight(Image.open(HERE / plate["file"]).convert("RGB"), light if plate.get("relight", True) else None)
         self.out_size = out_size
         self.push_in = push_in
         W, H = self.plate.size
