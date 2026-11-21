@@ -1,186 +1,10 @@
 {
- "note": "MacBook plates for the scroll Reel. Generated with Higgsfield GPT Image 2.5 (white screen); screen corners fitted from the white panel. Add a plate: generate with a flat white screen, fit corners, append here. Corners include the glass under the AI's oversized bezel (top/bottom grown to leave ~1.2% of the width as bezel); screen_aspect sets the capture viewport so nothing stretches. Curved monitors: add top_mid/bottom_mid (the middle of each bowed edge) and the site bends with the glass. scripts/macbook/fit_plate.py fits all of this from a white-screen photo.",
+ "note": "Plates for the scroll Reel. Since 11-21 every plate is the same curved-ultrawide high-rise office (the plate behind the reel that did well on Instagram); only the weather and time of day through the window change. Variants were made by editing ultrawide-city.jpg in ChatGPT with the screen kept flat white, then fitted with fit_plate.py. \"relight\": false keeps a plate's warm light out of the brand-colour relight (a golden-hour sky must not turn purple). Add a weather: edit ultrawide-city.jpg the same way, fit it, append here.",
  "plates": [
-  {
-   "id": "home-office",
-   "file": "home-office.jpg",
-   "description": "Warm home office, amber desk lamp",
-   "size": [
-    1520,
-    2688
-   ],
-   "screen": {
-    "tl": [
-     216.4,
-     903.9
-    ],
-    "tr": [
-     1303.0,
-     902.4
-    ],
-    "br": [
-     1309.0,
-     1669.1
-    ],
-    "bl": [
-     207.4,
-     1669.1
-    ]
-   },
-   "screen_aspect": 1.4285
-  },
-  {
-   "id": "dark-studio",
-   "file": "dark-studio.jpg",
-   "description": "Dark studio, warm strip light, coffee cup",
-   "size": [
-    1520,
-    2688
-   ],
-   "screen": {
-    "tl": [
-     321.4,
-     1007.9
-    ],
-    "tr": [
-     1197.4,
-     1006.3
-    ],
-    "br": [
-     1209.8,
-     1605.3
-    ],
-    "bl": [
-     311.5,
-     1606.1
-    ]
-   },
-   "screen_aspect": 1.4822
-  },
-  {
-   "id": "blue-hour",
-   "file": "blue-hour.jpg",
-   "description": "Apartment at blue hour, city window, brass lamp",
-   "size": [
-    1520,
-    2688
-   ],
-   "screen": {
-    "tl": [
-     279.9,
-     1093.2
-    ],
-    "tr": [
-     1221.6,
-     1093.2
-    ],
-    "br": [
-     1242.3,
-     1768.5
-    ],
-    "bl": [
-     260.8,
-     1770.8
-    ]
-   },
-   "screen_aspect": 1.4217
-  },
-  {
-   "id": "macbook-loft",
-   "file": "macbook-loft.jpg",
-   "description": "Bright Scandinavian loft, daylight, MacBook",
-   "size": [
-    941,
-    1672
-   ],
-   "screen": {
-    "tl": [
-     162.0,
-     615.0
-    ],
-    "tr": [
-     786.0,
-     617.6
-    ],
-    "br": [
-     786.0,
-     992.0
-    ],
-    "bl": [
-     162.0,
-     992.0
-    ]
-   },
-   "screen_aspect": 1.661
-  },
-  {
-   "id": "imac-studio",
-   "file": "imac-studio.jpg",
-   "description": "Architect studio, brass lamp, iMac",
-   "size": [
-    941,
-    1672
-   ],
-   "screen": {
-    "tl": [
-     153.0,
-     558.0
-    ],
-    "tr": [
-     842.0,
-     558.0
-    ],
-    "br": [
-     842.0,
-     937.6
-    ],
-    "bl": [
-     153.0,
-     939.4
-    ]
-   },
-   "screen_aspect": 1.8108
-  },
-  {
-   "id": "oled-night",
-   "file": "oled-night.jpg",
-   "description": "Dark studio, curved OLED ultrawide",
-   "size": [
-    2160,
-    3824
-   ],
-   "screen": {
-    "tl": [
-     98.0,
-     1544.1
-    ],
-    "tr": [
-     2064.0,
-     1541.2
-    ],
-    "br": [
-     2064.0,
-     2261.1
-    ],
-    "bl": [
-     98.0,
-     2260.5
-    ],
-    "top_mid": [
-     1081.0,
-     1579.2
-    ],
-    "bottom_mid": [
-     1081.0,
-     2222.4
-    ]
-   },
-   "screen_aspect": 2.857
-  },
   {
    "id": "ultrawide-city",
    "file": "ultrawide-city.jpg",
-   "description": "High-rise office at dusk, curved ultrawide",
+   "description": "High-rise office at dusk, curved ultrawide (the reel that did well)",
    "size": [
     2160,
     3824
@@ -212,6 +36,187 @@
     ]
    },
    "screen_aspect": 2.7704
+  },
+  {
+   "id": "city-sunny",
+   "file": "city-sunny.jpg",
+   "description": "Same office, clear sunny late morning",
+   "size": [
+    941,
+    1672
+   ],
+   "screen": {
+    "tl": [
+     55.0,
+     641.4
+    ],
+    "tr": [
+     892.0,
+     640.1
+    ],
+    "br": [
+     892.0,
+     959.6
+    ],
+    "bl": [
+     55.0,
+     957.9
+    ],
+    "top_mid": [
+     473.5,
+     658.8
+    ],
+    "bottom_mid": [
+     473.5,
+     938.9
+    ]
+   },
+   "screen_aspect": 2.7649
+  },
+  {
+   "id": "city-rain",
+   "file": "city-rain.jpg",
+   "description": "Same office, rainy overcast afternoon, drops on the glass",
+   "size": [
+    941,
+    1672
+   ],
+   "screen": {
+    "tl": [
+     54.0,
+     640.8
+    ],
+    "tr": [
+     891.0,
+     640.5
+    ],
+    "br": [
+     891.0,
+     960.1
+    ],
+    "bl": [
+     54.0,
+     958.4
+    ],
+    "top_mid": [
+     472.5,
+     658.2
+    ],
+    "bottom_mid": [
+     472.5,
+     938.8
+    ]
+   },
+   "screen_aspect": 2.7593
+  },
+  {
+   "id": "city-golden",
+   "file": "city-golden.jpg",
+   "description": "Same office, golden hour before sunset",
+   "size": [
+    942,
+    1669
+   ],
+   "screen": {
+    "tl": [
+     54.0,
+     639.2
+    ],
+    "tr": [
+     893.0,
+     638.6
+    ],
+    "br": [
+     893.0,
+     957.8
+    ],
+    "bl": [
+     54.0,
+     955.6
+    ],
+    "top_mid": [
+     473.5,
+     657.1
+    ],
+    "bottom_mid": [
+     473.5,
+     936.8
+    ]
+   },
+   "screen_aspect": 2.7741,
+   "relight": false
+  },
+  {
+   "id": "city-night",
+   "file": "city-night.jpg",
+   "description": "Same office, late night city lights, desk lamp",
+   "size": [
+    942,
+    1669
+   ],
+   "screen": {
+    "tl": [
+     55.0,
+     640.2
+    ],
+    "tr": [
+     892.0,
+     639.6
+    ],
+    "br": [
+     892.0,
+     959.0
+    ],
+    "bl": [
+     55.0,
+     956.3
+    ],
+    "top_mid": [
+     473.5,
+     657.8
+    ],
+    "bottom_mid": [
+     473.5,
+     937.4
+    ]
+   },
+   "screen_aspect": 2.7681
+  },
+  {
+   "id": "city-storm",
+   "file": "city-storm.jpg",
+   "description": "Same office, thunderstorm rolling in, lightning",
+   "size": [
+    942,
+    1669
+   ],
+   "screen": {
+    "tl": [
+     54.0,
+     639.5
+    ],
+    "tr": [
+     893.0,
+     638.4
+    ],
+    "br": [
+     893.0,
+     958.7
+    ],
+    "bl": [
+     54.0,
+     956.7
+    ],
+    "top_mid": [
+     473.5,
+     656.4
+    ],
+    "bottom_mid": [
+     473.5,
+     937.4
+    ]
+   },
+   "screen_aspect": 2.7637
   }
  ]
 }
