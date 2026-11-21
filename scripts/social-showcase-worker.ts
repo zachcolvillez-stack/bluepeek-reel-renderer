@@ -21,6 +21,16 @@ type AgentMeta = { candidates?: Candidate[]; rejected?: { site_url: string; reas
 type Job = { id: string; site_url: string; business_name: string; reel_meta: unknown; [k: string]: unknown };
 
 /** Point this job (and the agent's post) at a backup site, and rewrite the manifest for the renderer. */
+/** The track used least in `used` (most recent first); ties go to the one
+ * heard longest ago, then random. */
+export function leastUsed<T extends { name: string }>(tracks: T[], used: string[]): T | null {
+  if (!tracks.length) return null;
+  const count = (n: string) => used.filter((u) => u === n).length;
+  const lastSeen = (n: string) => { const i = used.indexOf(n); return i < 0 ? Infinity : i; };
+  const shuffled = [...tracks].sort(() => Math.random() - 0.5);
+  return shuffled.sort((a, b) => count(a.name) - count(b.name) || lastSeen(b.name) - lastSeen(a.name))[0];
+}
+
 async function switchSite(job: Job, next: Candidate, manifest: string, reelMusic: unknown) {
   job.site_url = next.site_url;
   job.business_name = next.site_name;
@@ -50,9 +60,13 @@ async function main() {
   if (claimError) throw claimError;
   if (!claimed) { console.log("Another worker claimed the job."); return; }
 
-  // One uploaded track per Reel, picked from the dashboard's music library.
+  // One uploaded track per Reel from the dashboard's music library: the one
+  // used least across recent reels (ties random), so the same song doesn't
+  // come round twice in a row (Zach, 21 Nov: "start using different music").
   const { data: tracks } = await db.from("social_reel_tracks").select("name,url,start_seconds").eq("active", true).order("id");
-  const reelMusic = tracks?.length ? tracks[Math.floor(Math.random() * tracks.length)] : null;
+  const { data: recent } = await db.from("social_showcases").select("reel_meta").not("reel_meta->>music", "is", null)
+    .order("updated_at", { ascending: false }).limit(60);
+  const reelMusic = leastUsed(tracks ?? [], (recent ?? []).map((r) => (r.reel_meta as { music?: string } | null)?.music ?? ""));
 
   const dir = mkdtempSync(join(tmpdir(), "bluepeek-showcase-"));
   try {
