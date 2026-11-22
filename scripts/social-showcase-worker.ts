@@ -14,7 +14,7 @@ if (!supabaseUrl || !serviceKey || !process.env.BLOB_READ_WRITE_TOKEN) {
 }
 const db = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
 
-const MAX_PREFLIGHTS = 3;
+const MAX_PREFLIGHTS = 6;
 const startedAt = Date.now();
 type Candidate = { site_url: string; site_name: string; studio: string; studio_url: string | null; awwwards_url: string | null };
 type AgentMeta = { candidates?: Candidate[]; rejected?: { site_url: string; reason: string }[]; plate_override?: string };
