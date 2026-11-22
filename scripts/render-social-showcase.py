@@ -303,7 +303,10 @@ def reel_viewport(plate):
     real ultrawide is a wide desktop, so it gets a wider viewport instead.
     """
     aspect = plate.get("screen_aspect", 1512 / 982)
-    width = max(1512, round(860 * aspect))
+    # 700 px tall on the ultrawide (~1940 wide). At 860 (2383 wide) most sites
+    # stopped at their 1440-1920 max width, leaving empty bands, and the ones
+    # that filled it read "mostly tiny" on a phone (22 Nov final checks).
+    width = max(1512, round(700 * aspect))
     return {"width": width, "height": round(width / aspect)}
 
 
