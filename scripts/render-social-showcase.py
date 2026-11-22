@@ -631,6 +631,27 @@ def _motion(paths):
     return [round(float(np.abs(a - b).mean()), 2) for a, b in zip(thumbs, thumbs[1:])]
 
 
+def _fill(path):
+    """
+    How much of a shot is really website. Two numbers the final check keeps
+    holding reels for (22 Nov: AKQA's "mostly blank white screen", Cuberto's
+    "narrow column with big blank bars on both sides"):
+      bars:  share of the width that is flat, empty colour at the left and right
+             edges (a site that stops at ~1200 px on the wide monitor screen)
+      blank: share of the shot that is one flat background colour
+    """
+    import numpy as np
+    a = np.asarray(Image.open(path).convert("L").resize((192, 120)), np.float32)
+    cols = a.std(axis=0)
+    flat = cols < 4
+    left = int(np.argmin(flat)) if not flat.all() else len(cols)
+    right = int(np.argmin(flat[::-1])) if not flat.all() else len(cols)
+    bars = min(1.0, (left + right) / len(cols))
+    hist = np.bincount((a // 8).astype(np.int64).ravel(), minlength=32)
+    blank = float(hist.max() / a.size)
+    return round(bars, 2), round(blank, 2)
+
+
 def preflight():
     """
     A quick look before the full render: open the site the way the Reel will,
@@ -667,11 +688,16 @@ def preflight():
         kind = "page" if bottom >= 300 else "wheel"
         height = REEL_VIEWPORT["height"]
         page.mouse.move(REEL_VIEWPORT["width"] / 2, height / 2)
+        # Shoot where the Reel will actually be at the final check's frame
+        # times (the middle of each eighth), so a short page that parks on its
+        # footer for half the Reel is seen here, not after a 1h+ render.
+        timeline = reel_timeline(bottom) if kind == "page" else []
         paths = []
         for i in range(8):
             if i:
                 if kind == "page":
-                    page.evaluate("(y) => window.lenis?.scrollTo ? window.lenis.scrollTo(y, { immediate: true, force: true }) : scrollTo(0, y)", bottom * i / 7)
+                    y = timeline[min(len(timeline) - 1, int(len(timeline) * (i + 0.5) / 8))]
+                    page.evaluate("(y) => window.lenis?.scrollTo ? window.lenis.scrollTo(y, { immediate: true, force: true }) : scrollTo(0, y)", y)
                 else:
                     for _ in range(6):  # about the Reel's wheel pace, in chunks the site can follow
                         page.mouse.wheel(0, height * WHEEL_SPEED * 2 / 6)
@@ -686,7 +712,9 @@ def preflight():
             paths.append(path)
         browser.close()
     diffs = _motion(paths)
-    stats = {"kind": kind, "screens": round(bottom / height, 1), "diffs": diffs, "changed": sum(d > 4 for d in diffs)}
+    fills = [_fill(p) for p in paths]
+    stats = {"kind": kind, "screens": round(bottom / height, 1), "diffs": diffs, "changed": sum(d > 4 for d in diffs),
+             "bars": [f[0] for f in fills], "blank": [f[1] for f in fills]}
     (OUT / "preflight.json").write_text(json.dumps(stats))
     print(f"Preflight: {stats}", flush=True)
 
