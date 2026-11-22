@@ -107,7 +107,15 @@ async function main() {
     if (job.created_by === "social-agent") {
       // The finished Reel gets looked over before it can post (Instagram runs
       // on autopilot): squished screens, unreadable hooks, broken frames.
-      const verdict = await finalCheck(job, dir);
+      // A check that couldn't run (API timeout, 5xx) is not a verdict on the
+      // Reel: try again rather than throw away a 1h+ render (22 Nov,
+      // dirtylinestudio re-rendered over "request timed out while fetching image").
+      let verdict = await finalCheck(job, dir);
+      for (let i = 0; i < 3 && !verdict.pass && /final check couldn't run/.test(verdict.reason); i++) {
+        console.log(`Final check didn't run (${verdict.reason}); retrying`);
+        await new Promise((r) => setTimeout(r, 30_000 * (i + 1)));
+        verdict = await finalCheck(job, dir);
+      }
       if (!verdict.pass) {
         // Regenerate (Zach, 16 Nov): one more render on a different background
         // before giving up on the site. The agent replaces sites that fail twice.
