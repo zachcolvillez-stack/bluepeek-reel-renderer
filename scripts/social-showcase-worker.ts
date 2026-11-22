@@ -192,10 +192,14 @@ async function review(job: { id: string; site_url: string }, manifest: string, d
     return { pass: false, reason: /too heavy/.test(err) ? err.replace(/^\w*Error: /, "") : "The site wouldn't load for a recording." };
   }
   const stats = JSON.parse(readFileSync(join(dir, "preflight.json"), "utf8"));
+  // A new folder per look: Blob caches each URL for 30 days, so reusing one
+  // path showed the reviewer the previous site's shots (22 Nov: "superlist.com
+  // shows a rabbit OS3 page", "linear.app mixed with a crypto wallet").
+  const run = `${Date.now().toString(36)}-${new URL(job.site_url).hostname.replace(/^www\./, "")}`;
   const frames = [];
   for (let i = 0; i < 8; i++) {
     const name = `${String(i).padStart(2, "0")}.jpg`;
-    const blob = await put(`social-showcases/${job.id}/preflight/${name}`, readFileSync(join(dir, "preflight", name)), {
+    const blob = await put(`social-showcases/${job.id}/preflight/${run}/${name}`, readFileSync(join(dir, "preflight", name)), {
       access: "public", contentType: "image/jpeg", addRandomSuffix: false, allowOverwrite: true,
     });
     frames.push(blob.url);
@@ -218,6 +222,7 @@ async function finalCheck(job: { id: string; site_url: string }, dir: string): P
   const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", reel], { encoding: "utf8" });
   const duration = Number(String(probe.stdout).trim());
   if (!duration) return { pass: false, reason: "Couldn't read the finished Reel." };
+  const run = Date.now().toString(36); // fresh URLs per render, see review()
   const frames = [];
   for (let i = 0; i < 8; i++) {
     const name = `${String(i).padStart(2, "0")}.jpg`;
@@ -225,7 +230,7 @@ async function finalCheck(job: { id: string; site_url: string }, dir: string): P
     const at = (duration * (i + 0.5)) / 8;
     const ff = spawnSync("ffmpeg", ["-v", "error", "-y", "-ss", at.toFixed(2), "-i", reel, "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "3", out]);
     if (ff.status !== 0 || !existsSync(out)) return { pass: false, reason: "Couldn't take frames from the finished Reel." };
-    const blob = await put(`social-showcases/${job.id}/final/${name}`, readFileSync(out), {
+    const blob = await put(`social-showcases/${job.id}/final/${run}/${name}`, readFileSync(out), {
       access: "public", contentType: "image/jpeg", addRandomSuffix: false, allowOverwrite: true,
     });
     frames.push(blob.url);
