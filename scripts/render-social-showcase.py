@@ -210,8 +210,27 @@ VIRTUAL_CLOCK = """(() => {
   // Zach saw (20 Nov). A playing video is paused and stepped by seeking;
   // a scroll-film video the site drives itself (paused, currentTime set from
   // scroll) is never "wanted" and stays the site's.
+  //
+  // WebGL sites often play a video that is never put in the page (made with
+  // createElement and drawn onto a canvas each frame). querySelectorAll never
+  // finds it, so it kept playing in real time while every frame took a second
+  // or more to capture: the site's video raced through at many times speed
+  // while the scroll looked right (Zach, 23 Nov). Every video that is created
+  // or played is tracked here, in the page or not.
   const media = HTMLMediaElement.prototype;
   const realPlay = media.play, realPause = media.pause;
+  const tracked = new Set();
+  const realCreate = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag, ...rest) {
+    const el = realCreate.call(this, tag, ...rest);
+    if (el instanceof HTMLVideoElement) tracked.add(el);
+    return el;
+  };
+  const videos = () => {
+    const all = new Set(tracked);
+    for (const v of document.querySelectorAll("video")) all.add(v);
+    return [...all];
+  };
   const want = (v) => {
     if (v.__vwant) return;
     v.__vwant = true;
@@ -219,6 +238,7 @@ VIRTUAL_CLOCK = """(() => {
     realPause.call(v);
   };
   media.play = function () {
+    if (this instanceof HTMLVideoElement) tracked.add(this);
     if (!on || !(this instanceof HTMLVideoElement)) return realPlay.call(this);
     want(this);
     return Promise.resolve();
@@ -230,7 +250,7 @@ VIRTUAL_CLOCK = """(() => {
   // Autoplay starts videos without calling play().
   document.addEventListener("play", (e) => { if (on && e.target instanceof HTMLVideoElement) want(e.target); }, true);
   const stepVideos = (ms) => {
-    for (const v of document.querySelectorAll("video")) {
+    for (const v of videos()) {
       if (!v.__vwant) continue;
       const d = v.duration;
       let t = v.__vt + (ms / 1000) * (v.playbackRate || 1);
@@ -260,7 +280,7 @@ VIRTUAL_CLOCK = """(() => {
       if (on) return;
       now = realNow(); dateBase = realDateNow() - now; on = true;
       pauseAnimations(false);
-      for (const v of document.querySelectorAll("video")) if (!v.paused) want(v);
+      for (const v of videos()) if (!v.paused) want(v);
     },
     async step(ms) {
       now += ms;
@@ -284,7 +304,8 @@ VIRTUAL_CLOCK = """(() => {
     async settle() {
       const deadline = realNow() + 4000;
       while (realNow() < deadline) {
-        const vids = [...document.querySelectorAll("video")].filter(v => v.isConnected && v.getClientRects().length);
+        // On screen, or off the page but being drawn into a canvas.
+        const vids = videos().filter(v => v.isConnected ? v.getClientRects().length : v.__vwant);
         if (vids.every(v => !v.seeking && (v.readyState >= 2 || v.networkState === 3 || !v.currentSrc))) break;
         await new Promise(r => realSetTimeout(r, 8));
       }
