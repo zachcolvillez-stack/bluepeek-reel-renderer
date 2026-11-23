@@ -226,9 +226,20 @@ VIRTUAL_CLOCK = """(() => {
     if (el instanceof HTMLVideoElement) tracked.add(el);
     return el;
   };
+  // Videos inside web components (shadow DOM) are invisible to
+  // document.querySelectorAll and their autoplay "play" event never reaches
+  // the document, so remember every shadow root and watch it too.
+  const roots = [document];
+  const realAttachShadow = Element.prototype.attachShadow;
+  Element.prototype.attachShadow = function (...args) {
+    const root = realAttachShadow.apply(this, args);
+    roots.push(root);
+    root.addEventListener("play", (e) => { if (on && e.target instanceof HTMLVideoElement) want(e.target); }, true);
+    return root;
+  };
   const videos = () => {
     const all = new Set(tracked);
-    for (const v of document.querySelectorAll("video")) all.add(v);
+    for (const r of roots) for (const v of r.querySelectorAll("video")) all.add(v);
     return [...all];
   };
   const want = (v) => {
@@ -250,6 +261,13 @@ VIRTUAL_CLOCK = """(() => {
   // Autoplay starts videos without calling play().
   document.addEventListener("play", (e) => { if (on && e.target instanceof HTMLVideoElement) want(e.target); }, true);
   const stepVideos = (ms) => {
+    // Safety net: anything playing by itself now (autoplay we never saw, a
+    // video started some other way) goes back on the frame clock, so no site
+    // video can race through a reel again (23 Nov).
+    for (const v of videos()) {
+      if (v.paused) continue;
+      if (v.__vwant) realPause.call(v); else want(v);
+    }
     for (const v of videos()) {
       if (!v.__vwant) continue;
       const d = v.duration;
