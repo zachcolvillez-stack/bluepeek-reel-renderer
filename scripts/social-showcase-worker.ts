@@ -73,7 +73,9 @@ async function main() {
     const manifest = join(dir, "manifest.json");
     const plateOverride = (job.reel_meta as { plate_override?: string } | null)?.plate_override;
     writeFileSync(manifest, JSON.stringify({ ...job, reel_music: reelMusic, ...(plateOverride ? { reel_plate: plateOverride } : {}) }));
-    if (job.created_by === "social-agent") {
+    // Clip reels (motionsites.ai previews) have no live site to preflight: the clips are the content.
+    const isClips = Array.isArray((job.reel_meta as { clips?: unknown[] } | null)?.clips);
+    if (job.created_by === "social-agent" && !isClips) {
       // Agent-found sites get reviewed before the long render (Zach, 15 Nov:
       // three of five reels "don't scroll through a website"). A site the
       // reviewer turns down is swapped for the next screened backup the agent
@@ -110,11 +112,11 @@ async function main() {
       // A check that couldn't run (API timeout, 5xx) is not a verdict on the
       // Reel: try again rather than throw away a 1h+ render (22 Nov,
       // dirtylinestudio re-rendered over "request timed out while fetching image").
-      let verdict = await finalCheck(job, dir);
+      let verdict = await finalCheck(job, dir, isClips);
       for (let i = 0; i < 3 && !verdict.pass && /final check couldn't run/.test(verdict.reason); i++) {
         console.log(`Final check didn't run (${verdict.reason}); retrying`);
         await new Promise((r) => setTimeout(r, 30_000 * (i + 1)));
-        verdict = await finalCheck(job, dir);
+        verdict = await finalCheck(job, dir, isClips);
       }
       if (!verdict.pass) {
         // Regenerate (Zach, 16 Nov): one more render on a different background
@@ -225,7 +227,7 @@ async function review(job: { id: string; site_url: string }, manifest: string, d
 }
 
 /** 8 frames of the finished Reel → Blob → the dashboard's final check. Fails closed. */
-async function finalCheck(job: { id: string; site_url: string }, dir: string): Promise<Verdict> {
+async function finalCheck(job: { id: string; site_url: string }, dir: string, clips = false): Promise<Verdict> {
   const reel = join(dir, "reel.mp4");
   const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", reel], { encoding: "utf8" });
   const duration = Number(String(probe.stdout).trim());
@@ -246,7 +248,7 @@ async function finalCheck(job: { id: string; site_url: string }, dir: string): P
   const res = await fetch(`${process.env.DASHBOARD_URL || "https://bluepeekdashboard.com.au"}/api/social/review-preflight`, {
     method: "POST",
     headers: { authorization: `Bearer ${serviceKey}`, "content-type": "application/json" },
-    body: JSON.stringify({ site_url: job.site_url, frames, stage: "final" }),
+    body: JSON.stringify({ site_url: job.site_url, frames, stage: "final", ...(clips ? { clips: true } : {}) }),
     signal: AbortSignal.timeout(150_000),
   }).catch(() => null);
   const body = (await res?.json().catch(() => ({}))) as Verdict & { error?: string };

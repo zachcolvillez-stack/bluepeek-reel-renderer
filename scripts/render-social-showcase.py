@@ -772,6 +772,45 @@ def check_motion():
         raise RuntimeError(f"Reel barely moves ({changed}/{len(diffs)} steps changed): the site didn't scroll or got stuck")
 
 
+# Clip reels (motionsites.ai previews): a few ~7 s motion-design previews from
+# one industry, cut together to fill the Reel's screen.
+CLIP_SECONDS = 6.5
+MAX_CLIPS = 4
+
+
+def capture_clips():
+    """
+    Stand-in for capture() when the job carries reel_meta.clips: instead of
+    recording a live site, cut the clips' videos (cover-cropped to the plate's
+    screen proportions, 60 fps) into FRAMES. Everything after this (mockup,
+    compositing onto the plate, music, encode) is unchanged.
+    """
+    global REEL_VIEWPORT
+    sys.path.insert(0, str(Path(__file__).parent / "macbook"))
+    from composite import choose_plate
+    plate = choose_plate(MANIFEST.get("id") or MANIFEST["site_url"], MANIFEST.get("reel_plate"))
+    REEL_VIEWPORT = reel_viewport(plate)
+    w, h = REEL_VIEWPORT["width"] // 2 * 2, REEL_VIEWPORT["height"] // 2 * 2
+    clips = [c for c in ((MANIFEST.get("reel_meta") or {}).get("clips") or []) if safe_host(str(c.get("url", "")))][:MAX_CLIPS]
+    if not clips:
+        raise ValueError("No usable clips in the manifest")
+    per = min(CLIP_SECONDS, MAX_SECONDS / len(clips))
+    inputs, chains = [], []
+    for i, clip in enumerate(clips):
+        inputs += ["-t", f"{per:.2f}", "-i", clip["url"]]
+        chains.append(f"[{i}:v]setpts=PTS-STARTPTS,scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},fps={FPS},setsar=1[v{i}]")
+    graph = ";".join(chains) + ";" + "".join(f"[v{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=0[v]"
+    print(f"Cutting {len(clips)} clips into {w}x{h} frames", flush=True)
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", *inputs, "-filter_complex", graph, "-map", "[v]", "-start_number", "0", "-q:v", "2", str(FRAMES / "%05d.jpg")], check=True, timeout=600)
+    if not list(FRAMES.glob("*.jpg")):
+        raise RuntimeError("The clips produced no frames")
+    # Stills for the showcase mockup (desktop + phone crops of the first clip).
+    first = clips[0]["url"]
+    for name, (sw, sh) in (("desktop.png", (1440, 900)), ("mobile.png", (390, 844))):
+        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-ss", "2.5", "-i", first, "-frames:v", "1",
+                        "-vf", f"scale={sw}:{sh}:force_original_aspect_ratio=increase,crop={sw}:{sh}", str(OUT / name)], check=True, timeout=120)
+
+
 def wheel_reel(page, step_ms):
     """Capture a site that scrolls on wheel events rather than page height.
 
@@ -943,7 +982,10 @@ if __name__ == "__main__":
     if os.environ.get("SHOWCASE_PREFLIGHT") == "1":
         preflight()
         sys.exit(0)
-    capture()
+    if (MANIFEST.get("reel_meta") or {}).get("clips"):
+        capture_clips()
+    else:
+        capture()
     check_motion()
     # No brand colour set or detected: use the site's own strongest colour for
     # every tile (mockup backdrop, case study accent, room light), so a gold
