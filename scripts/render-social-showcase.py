@@ -798,7 +798,16 @@ def capture_clips():
     inputs, chains = [], []
     for i, clip in enumerate(clips):
         inputs += ["-t", f"{per:.2f}", "-i", clip["url"]]
-        chains.append(f"[{i}:v]setpts=PTS-STARTPTS,scale={w}:{h}:force_original_aspect_ratio=increase:flags=lanczos,crop={w}:{h},fps={FPS},setsar=1[v{i}]")
+        # The previews are 16:9 and the plate's screen is ~2.6:1. Cropping them to
+        # fill it cut headlines off (26 Nov, Zach: "didn't fit on the screen
+        # properly"), so show each preview whole at full height and fill the sides
+        # with a blurred, dimmed copy of the same clip.
+        chains.append(
+            f"[{i}:v]setpts=PTS-STARTPTS,fps={FPS},split[f{i}][b{i}];"
+            f"[b{i}]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},gblur=sigma=36,eq=brightness=-0.14:saturation=1.1[bg{i}];"
+            f"[f{i}]scale=-2:{h}:flags=lanczos[fg{i}];"
+            f"[bg{i}][fg{i}]overlay=(W-w)/2:0,setsar=1[v{i}]"
+        )
     graph = ";".join(chains) + ";" + "".join(f"[v{i}]" for i in range(len(clips))) + f"concat=n={len(clips)}:v=1:a=0[v]"
     print(f"Cutting {len(clips)} clips into {w}x{h} frames", flush=True)
     subprocess.run(["ffmpeg", "-loglevel", "error", "-y", *inputs, "-filter_complex", graph, "-map", "[v]", "-start_number", "0", "-q:v", "2", str(FRAMES / "%05d.jpg")], check=True, timeout=600)
